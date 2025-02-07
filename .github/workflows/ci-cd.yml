@@ -29,20 +29,23 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Deploy to VM
-        env:
-          PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          HOST: ${{ secrets.VM_HOST }}
-          USERNAME: ${{ secrets.VM_USERNAME }}
-        run: |
-          echo "$PRIVATE_KEY" > deploy_key
-          chmod 600 deploy_key
-          mkdir -p ~/.ssh
-          ssh-keyscan -H $HOST >> ~/.ssh/known_hosts
+      - name: Install SSH key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known_hosts: unnecessary
+          if_key_exists: replace
 
-          scp -i deploy_key -r ./* $USERNAME@$HOST:/home/$USERNAME/app/
-          ssh -i deploy_key $USERNAME@$HOST '
-            cd /home/$USERNAME/app &&
+      - name: Adding Known Hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.VM_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to VM
+        run: |
+          rsync -avz --delete ./ ${{ secrets.VM_USERNAME }}@${{ secrets.VM_HOST }}:/home/${{ secrets.VM_USERNAME }}/app/
+          ssh ${{ secrets.VM_USERNAME }}@${{ secrets.VM_HOST }} '
+            cd /home/${{ secrets.VM_USERNAME }}/app &&
             docker-compose down &&
             docker-compose up --build -d
           '
