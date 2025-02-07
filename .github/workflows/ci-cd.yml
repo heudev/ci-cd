@@ -36,16 +36,21 @@ jobs:
           known_hosts: unnecessary
           if_key_exists: replace
 
-      - name: Adding Known Hosts
+      - name: Setup SSH Config
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.VM_HOST }} >> ~/.ssh/known_hosts
+          echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+          chmod 600 ~/.ssh/config
 
       - name: Deploy to VM
         run: |
-          rsync -avz --delete ./ ${{ secrets.VM_USERNAME }}@${{ secrets.VM_HOST }}:/home/${{ secrets.VM_USERNAME }}/app/
-          ssh ${{ secrets.VM_USERNAME }}@${{ secrets.VM_HOST }} '
-            cd /home/${{ secrets.VM_USERNAME }}/app &&
-            docker-compose down &&
-            docker-compose up --build -d
-          '
+          rsync -avz --delete \
+            -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+            ./ ${{ secrets.VM_USERNAME }}@${{ secrets.VM_HOST }}:/home/${{ secrets.VM_USERNAME }}/app/
+
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            ${{ secrets.VM_USERNAME }}@${{ secrets.VM_HOST }} '
+              cd /home/${{ secrets.VM_USERNAME }}/app && \
+              docker-compose down && \
+              docker-compose up --build -d
+            '
