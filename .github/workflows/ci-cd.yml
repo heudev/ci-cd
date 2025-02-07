@@ -1,0 +1,48 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+      - name: Install dependencies
+        run: npm ci
+      - name: Run tests
+        run: npm test
+      - name: Run linting
+        run: npm run lint
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Deploy to VM
+        env:
+          PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          HOST: ${{ secrets.VM_HOST }}
+          USERNAME: ${{ secrets.VM_USERNAME }}
+        run: |
+          echo "$PRIVATE_KEY" > deploy_key
+          chmod 600 deploy_key
+          mkdir -p ~/.ssh
+          ssh-keyscan -H $HOST >> ~/.ssh/known_hosts
+
+          scp -i deploy_key -r ./* $USERNAME@$HOST:/home/$USERNAME/app/
+          ssh -i deploy_key $USERNAME@$HOST '
+            cd /home/$USERNAME/app &&
+            docker-compose down &&
+            docker-compose up --build -d
+          '
