@@ -13,7 +13,6 @@ app.get('/health', (req, res) => {
 if (process.env.NODE_ENV !== 'test') {
     app.listen(port, () => {
         console.log(`Uygulama ${port} portunda çalışıyor`);
-
     });
 }
 
