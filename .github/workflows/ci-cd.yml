@@ -29,28 +29,35 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install SSH key
-        uses: shimataro/ssh-key-action@v2
-        with:
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          known_hosts: unnecessary
-          if_key_exists: replace
-
-      - name: Setup SSH Config
+      - name: Create SSH key
         run: |
-          mkdir -p ~/.ssh
-          echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
-          chmod 600 ~/.ssh/config
+          mkdir -p ~/.ssh/
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/deploy_key
+
+      - name: Add known hosts
+        run: |
+          echo "${{ secrets.VM_HOST }} $(ssh-keyscan -t rsa ${{ secrets.VM_HOST }} 2>/dev/null)" >> ~/.ssh/known_hosts
 
       - name: Deploy to VM
+        env:
+          VM_HOST: ${{ secrets.VM_HOST }}
+          VM_USERNAME: ${{ secrets.VM_USERNAME }}
         run: |
-          rsync -avz --delete \
-            -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
-            ./ ${{ secrets.VM_USERNAME }}@${{ secrets.VM_HOST }}:/home/${{ secrets.VM_USERNAME }}/app/
+          # Test SSH connection
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new $VM_USERNAME@$VM_HOST 'echo "SSH connection successful"'
 
-          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            ${{ secrets.VM_USERNAME }}@${{ secrets.VM_HOST }} '
-              cd /home/${{ secrets.VM_USERNAME }}/app && \
-              docker-compose down && \
-              docker-compose up --build -d
-            '
+          # Create app directory if it doesn't exist
+          ssh -i ~/.ssh/deploy_key $VM_USERNAME@$VM_HOST 'mkdir -p ~/app'
+
+          # Copy files
+          scp -i ~/.ssh/deploy_key -r ./* $VM_USERNAME@$VM_HOST:/home/$VM_USERNAME/app/
+
+          # Deploy application
+          ssh -i ~/.ssh/deploy_key $VM_USERNAME@$VM_HOST '
+            cd ~/app && \
+            sudo docker-compose down || true && \
+            sudo docker-compose up --build -d
+          '
