@@ -94,13 +94,13 @@ jobs:
           git pull origin main
           
           # Stop existing containers
-          docker-compose down
+          sudo docker compose down
           
           # Remove old images to save space
-          docker image prune -f
+          sudo docker image prune -f
           
           # Build and start new containers
-          docker-compose up -d --build
+          sudo docker compose up -d --build
           
           # Wait for application to start
           sleep 20
