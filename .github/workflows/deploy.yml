@@ -88,7 +88,7 @@ jobs:
     - name: Deploy to server
       run: |
         ssh ${{ secrets.VM_USERNAME }}@${{ secrets.VM_HOST }} << 'EOF'
-          cd /home/${{ secrets.VM_USERNAME }}/nodejs-cicd-demo || exit 1
+          cd /home/${{ secrets.VM_USERNAME }}/ci-cd || exit 1
           
           # Pull latest changes
           git pull origin main
